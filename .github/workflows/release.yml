@@ -1,20 +1,41 @@
 name: Release
 
-# Push a tag like v0.1.0 to build and publish. "Run workflow" builds without publishing.
+# Two ways to publish a version:
+#  1. GitHub > Actions > Release > "Run workflow", enter e.g. v0.1.1 (creates the tag for you)
+#  2. git tag v0.1.1 && git push origin v0.1.1
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, e.g. v0.1.1"
+        required: true
+        type: string
 
 permissions:
   contents: write
+
+env:
+  VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
 
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Check version format
+        run: |
+          [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]] || { echo "Version must look like v1.2.3, got '$VERSION'"; exit 1; }
+      - name: Refuse an existing release
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $VERSION already exists"; exit 1
+          fi
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - name: Build synthetic Home Duo disk images (md RAID1 + ext4, ext3)
@@ -32,17 +53,20 @@ jobs:
     needs: test
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+      - name: Stamp version
+        shell: bash
+        run: python .github/stamp_version.py "$VERSION"
       - name: Build
         shell: pwsh
         run: ./build_windows.ps1
       - name: Name artifact
         shell: pwsh
-        run: Move-Item dist/HomeDuoRecovery-windows.zip "dist/HomeDuoRecovery-${{ github.ref_name }}-windows-x64.zip"
-      - uses: actions/upload-artifact@v4
+        run: Move-Item dist/HomeDuoRecovery-windows.zip "dist/HomeDuoRecovery-$env:VERSION-windows-x64.zip"
+      - uses: actions/upload-artifact@v5
         with:
           name: windows
           path: dist/HomeDuoRecovery-*-windows-x64.zip
@@ -58,30 +82,33 @@ jobs:
             arch: x64
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+      - name: Stamp version
+        run: python .github/stamp_version.py "$VERSION"
       - name: Build
         run: bash build_macos.sh
       - name: Name artifact
-        run: mv dist/HomeDuoRecovery-mac.zip "dist/HomeDuoRecovery-${{ github.ref_name }}-macos-${{ matrix.arch }}.zip"
-      - uses: actions/upload-artifact@v4
+        run: mv dist/HomeDuoRecovery-mac.zip "dist/HomeDuoRecovery-$VERSION-macos-${{ matrix.arch }}.zip"
+      - uses: actions/upload-artifact@v5
         with:
           name: macos-${{ matrix.arch }}
           path: dist/HomeDuoRecovery-*-macos-*.zip
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
     needs: [windows, macos]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v5
         with:
           path: dist
           merge-multiple: true
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ env.VERSION }}
+          target_commitish: ${{ github.sha }}
           files: dist/*.zip
           generate_release_notes: true
           body: |
@@ -89,9 +116,9 @@ jobs:
 
             | Computer | File |
             |---|---|
-            | Windows 10/11 (also runs on Windows on ARM) | `HomeDuoRecovery-${{ github.ref_name }}-windows-x64.zip` |
-            | Mac with Apple Silicon (M1/M2/M3/M4) | `HomeDuoRecovery-${{ github.ref_name }}-macos-arm64.zip` |
-            | Mac with Intel processor | `HomeDuoRecovery-${{ github.ref_name }}-macos-x64.zip` |
+            | Windows 10/11 (also runs on Windows on ARM) | `HomeDuoRecovery-${{ env.VERSION }}-windows-x64.zip` |
+            | Mac with Apple Silicon (M1/M2/M3/M4) | `HomeDuoRecovery-${{ env.VERSION }}-macos-arm64.zip` |
+            | Mac with Intel processor | `HomeDuoRecovery-${{ env.VERSION }}-macos-x64.zip` |
 
             Unzip, then double-click the app. See the README "Quick start" for first-launch prompts.
             The app only reads your Home Duo disk; never let Windows/macOS initialise or format it.

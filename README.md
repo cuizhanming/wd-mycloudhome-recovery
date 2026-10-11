@@ -153,9 +153,11 @@ python -m venv .venv
 
 - Windows `.exe`: `.\build_windows.ps1` creates `dist\HomeDuoRecovery-windows.zip`.
 - macOS `.app`: run `./build_macos.sh` **on a Mac** (PyInstaller cannot cross-compile).
-- **Releases:** pushing a tag (`git tag v0.1.0 && git push origin v0.1.0`) makes GitHub
-  Actions run the tests, build the Windows, Apple Silicon and Intel Mac versions, and
-  publish them on the Releases page.
+- **Releases:** on GitHub, open **Actions ▸ Release ▸ Run workflow**, type a version
+  (for example `v0.1.1`) and click **Run workflow**. Alternatively push a tag:
+  `git tag v0.1.1 && git push origin v0.1.1`. Either way, GitHub Actions runs the tests,
+  builds the Windows, Apple Silicon and Intel Mac versions with that version number, and
+  publishes them on the Releases page.
 
 ## Tests
 
