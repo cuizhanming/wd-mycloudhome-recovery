@@ -1,0 +1,97 @@
+name: Release
+
+# Push a tag like v0.1.0 to build and publish. "Run workflow" builds without publishing.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build synthetic Home Duo disk images (md RAID1 + ext4, ext3)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq mdadm gdisk e2fsprogs
+          sudo bash tests/make_test_images.sh "$PWD/tests/data"
+          sudo chown -R "$USER" tests/data
+      - name: Run tests
+        run: |
+          pip install -r requirements.txt pytest
+          QT_QPA_PLATFORM=offscreen python -m pytest -q
+
+  windows:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build
+        shell: pwsh
+        run: ./build_windows.ps1
+      - name: Name artifact
+        shell: pwsh
+        run: Move-Item dist/HomeDuoRecovery-windows.zip "dist/HomeDuoRecovery-${{ github.ref_name }}-windows-x64.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/HomeDuoRecovery-*-windows-x64.zip
+
+  macos:
+    needs: test
+    strategy:
+      matrix:
+        include:
+          - runner: macos-latest       # Apple Silicon
+            arch: arm64
+          - runner: macos-15-intel     # Intel Macs
+            arch: x64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build
+        run: bash build_macos.sh
+      - name: Name artifact
+        run: mv dist/HomeDuoRecovery-mac.zip "dist/HomeDuoRecovery-${{ github.ref_name }}-macos-${{ matrix.arch }}.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.arch }}
+          path: dist/HomeDuoRecovery-*-macos-*.zip
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows, macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.zip
+          generate_release_notes: true
+          body: |
+            ## Download
+
+            | Computer | File |
+            |---|---|
+            | Windows 10/11 (also runs on Windows on ARM) | `HomeDuoRecovery-${{ github.ref_name }}-windows-x64.zip` |
+            | Mac with Apple Silicon (M1/M2/M3/M4) | `HomeDuoRecovery-${{ github.ref_name }}-macos-arm64.zip` |
+            | Mac with Intel processor | `HomeDuoRecovery-${{ github.ref_name }}-macos-x64.zip` |
+
+            Unzip, then double-click the app. See the README "Quick start" for first-launch prompts.
+            The app only reads your Home Duo disk; never let Windows/macOS initialise or format it.

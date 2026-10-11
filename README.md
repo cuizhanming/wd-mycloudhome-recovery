@@ -13,6 +13,11 @@ source disk**. The source is opened read-only, and all parsing happens in user s
 **It's a desktop app: you double-click it.** There's nothing to install, and you don't
 need a website or an internet connection.
 
+**Download:** open the
+[Releases page](https://github.com/cuizhanming/wd-mycloudhome-recovery/releases/latest)
+and pick the zip file for your computer (Windows, Mac with Apple Silicon, or Mac with
+Intel).
+
 ### Windows
 
 1. Unzip **`HomeDuoRecovery-windows.zip`** anywhere, for example on your Desktop.
@@ -32,8 +37,10 @@ need a website or an internet connection.
 
 1. Double-click **`HomeDuoRecovery-mac.zip`** to unzip it, then double-click
    **`Home Duo Recovery.app`** (or drag it to *Applications* first).
-   - The first time, macOS may say it *"cannot be opened"*. **Right-click the app ▸
-     Open ▸ Open** instead. This is only needed once.
+   - The first time, macOS may say it *"cannot be opened"* or *"cannot be verified"*.
+     Click **Done**, open **System Settings ▸ Privacy & Security**, scroll down, and click
+     **Open Anyway**. On older macOS you can instead **right-click the app ▸ Open ▸ Open**.
+     This is only needed once.
 2. Plug in the Home Duo disk. If macOS says the disk is *not readable*, click **Ignore**.
    **Never click Initialize.**
 3. Follow steps 5–6 above. macOS asks for your password when you open the disk.
@@ -144,8 +151,11 @@ python -m venv .venv
 .venv\Scripts\python -m homeduo_recovery           # start the app
 ```
 
-- Windows `.exe`: `.\build_windows.ps1` creates `dist\HomeDuoRecovery\HomeDuoRecovery.exe`.
+- Windows `.exe`: `.\build_windows.ps1` creates `dist\HomeDuoRecovery-windows.zip`.
 - macOS `.app`: run `./build_macos.sh` **on a Mac** (PyInstaller cannot cross-compile).
+- **Releases:** pushing a tag (`git tag v0.1.0 && git push origin v0.1.0`) makes GitHub
+  Actions run the tests, build the Windows, Apple Silicon and Intel Mac versions, and
+  publish them on the Releases page.
 
 ## Tests
 
