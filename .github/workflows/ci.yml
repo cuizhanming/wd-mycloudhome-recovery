@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Build synthetic Home Duo disk images (md RAID1 + ext4, ext3)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq mdadm gdisk e2fsprogs
+          sudo bash tests/make_test_images.sh "$PWD/tests/data"
+          sudo chown -R "$USER" tests/data
+      - name: Run tests
+        run: |
+          pip install -r requirements.txt pytest
+          QT_QPA_PLATFORM=offscreen python -m pytest -q
